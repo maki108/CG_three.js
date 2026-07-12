@@ -129,6 +129,9 @@ export function createKaiju() {
   // 全体の大きさ
   root.scale.setScalar(1.45);
 
+  let roarRequested = false;
+  let roarStartedAt = -Infinity;
+
   const skinMaterial = new THREE.MeshStandardMaterial({
     color: 0x294238,
     roughness: 0.92,
@@ -347,72 +350,130 @@ export function createKaiju() {
     }
   });
 
+  function roar() {
+    roarRequested = true;
+  }
+
   function update(elapsedTime) {
+    if (roarRequested) {
+      roarStartedAt = elapsedTime;
+      roarRequested = false;
+    }
+
+    const roarElapsed =
+      elapsedTime - roarStartedAt;
+
+    const roarDuration = 1.8;
+
+    const isRoaring =
+      roarElapsed >= 0 &&
+      roarElapsed <= roarDuration;
+
+    const roarProgress = isRoaring
+      ? roarElapsed / roarDuration
+      : 0;
+
+    // 0 → 1 → 0と変化する
+    const roarPower = isRoaring
+      ? Math.sin(roarProgress * Math.PI)
+      : 0;
+
     const walkSpeed = 2.7;
     const phase = elapsedTime * walkSpeed;
 
-    // 道路上を奥から手前へ移動
     const routeLength = 28;
 
     root.position.z =
       -14 + ((elapsedTime * 1.15) % routeLength);
 
-    // 胴体の上下動
+    // 歩行による上下動
     upperBody.position.y =
-      Math.abs(Math.sin(phase)) * 0.12;
+      Math.abs(Math.sin(phase)) * 0.12 +
+      roarPower * 0.16;
 
     upperBody.rotation.z =
       Math.sin(phase) * 0.025;
 
-    // 左右の脚を逆方向に振る
+    upperBody.rotation.x =
+      -roarPower * 0.07;
+
+    // 脚
     leftLeg.rotation.x =
       Math.sin(phase) * 0.48;
 
     rightLeg.rotation.x =
       -Math.sin(phase) * 0.48;
 
-    // 膝を曲げる
     leftLeg.userData.knee.rotation.x =
       Math.max(0, -Math.sin(phase)) * 0.48;
 
     rightLeg.userData.knee.rotation.x =
       Math.max(0, Math.sin(phase)) * 0.48;
 
-    // 腕は脚と逆方向に振る
+    // 腕
     leftArm.rotation.x =
       -Math.sin(phase) * 0.38;
 
     rightArm.rotation.x =
       Math.sin(phase) * 0.38;
 
-    leftArm.userData.elbow.rotation.x = 0.18;
-    rightArm.userData.elbow.rotation.x = 0.18;
+    // 咆哮時に腕を広げる
+    leftArm.rotation.z =
+      -0.16 - roarPower * 0.42;
 
-    // 頭を左右に動かす
+    rightArm.rotation.z =
+      0.16 + roarPower * 0.42;
+
+    leftArm.userData.elbow.rotation.x =
+      0.18 + roarPower * 0.2;
+
+    rightArm.userData.elbow.rotation.x =
+      0.18 + roarPower * 0.2;
+
+    // 頭
     headPivot.rotation.y =
       Math.sin(elapsedTime * 0.9) * 0.12;
 
     headPivot.rotation.z =
       Math.sin(elapsedTime * 0.55) * 0.035;
 
-    // 顎を少し開閉
+    // 咆哮時に頭を後ろへ反らす
+    headPivot.rotation.x =
+      -roarPower * 0.22;
+
+    // 通常時の顎の動き＋咆哮時の大きな開口
     jawPivot.rotation.x =
       0.04 +
-      Math.max(0, Math.sin(elapsedTime * 0.65)) *
-        0.08;
+      Math.max(
+        0,
+        Math.sin(elapsedTime * 0.65),
+      ) *
+        0.08 +
+      roarPower * 0.72;
 
-    // 位相差を付けて尻尾を動かす
+    // 尻尾
     tail.pivots.forEach((pivot, index) => {
       pivot.rotation.y =
         Math.sin(
           elapsedTime * 2.1 - index * 0.55,
         ) *
-        (0.18 + index * 0.055);
+          (0.18 + index * 0.055) +
+        roarPower *
+          Math.sin(index * 0.8) *
+          0.12;
     });
+
+    // 咆哮時に背びれと目を強く発光
+    glowMaterial.emissiveIntensity =
+      1.8 + roarPower * 5;
+
+    eyeMaterial.emissiveIntensity =
+      3 + roarPower * 5;
   }
 
   return {
     group: root,
     update,
+    roar,
   };
 }

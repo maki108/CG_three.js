@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createKaiju } from "./kaiju.js";
+import {
+  createDestructionSystem,
+} from "./destruction.js";
 import "./style.css";
 
 // ============================================================
@@ -430,6 +433,111 @@ const kaiju = createKaiju();
 scene.add(kaiju.group);
 
 // ============================================================
+// 建物崩壊システム
+// ============================================================
+
+const destructionSystem =
+  createDestructionSystem(scene);
+
+// ============================================================
+// マウスクリック判定
+// ============================================================
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+const pointerDownPosition = {
+  x: 0,
+  y: 0,
+};
+
+function findInteractiveObject(object) {
+  let currentObject = object;
+
+  while (currentObject) {
+    if (
+      currentObject.userData.type === "building" ||
+      currentObject.userData.type === "kaiju"
+    ) {
+      return currentObject;
+    }
+
+    currentObject = currentObject.parent;
+  }
+
+  return null;
+}
+
+renderer.domElement.addEventListener(
+  "pointerdown",
+  (event) => {
+    pointerDownPosition.x = event.clientX;
+    pointerDownPosition.y = event.clientY;
+  },
+);
+
+renderer.domElement.addEventListener(
+  "pointerup",
+  (event) => {
+    // カメラをドラッグした場合はクリックとして扱わない
+    const movedDistance = Math.hypot(
+      event.clientX - pointerDownPosition.x,
+      event.clientY - pointerDownPosition.y,
+    );
+
+    if (movedDistance > 6 || event.button !== 0) {
+      return;
+    }
+
+    const canvasRect =
+      renderer.domElement.getBoundingClientRect();
+
+    pointer.x =
+      ((event.clientX - canvasRect.left) /
+        canvasRect.width) *
+        2 -
+      1;
+
+    pointer.y =
+      -(
+        (event.clientY - canvasRect.top) /
+        canvasRect.height
+      ) *
+        2 +
+      1;
+
+    raycaster.setFromCamera(pointer, camera);
+
+    const intersections =
+      raycaster.intersectObjects(
+        [cityGroup, kaiju.group],
+        true,
+      );
+
+    if (intersections.length === 0) {
+      return;
+    }
+
+    const target = findInteractiveObject(
+      intersections[0].object,
+    );
+
+    if (!target) {
+      return;
+    }
+
+    if (target.userData.type === "kaiju") {
+      kaiju.roar();
+      return;
+    }
+
+    if (target.userData.type === "building") {
+      destructionSystem.destroyBuilding(target);
+    }
+  },
+);
+
+// ============================================================
 // ウィンドウサイズ変更
 // ============================================================
 
@@ -450,15 +558,25 @@ window.addEventListener("resize", () => {
 
 const clock = new THREE.Clock();
 
+let previousTime = 0;
+
 function animate() {
   const elapsedTime = clock.getElapsedTime();
+
+  const deltaTime = Math.min(
+    elapsedTime - previousTime,
+    0.05,
+  );
+
+  previousTime = elapsedTime;
 
   sun.scale.setScalar(
     1 + Math.sin(elapsedTime * 0.5) * 0.015,
   );
 
-  // 怪獣の歩行アニメーション
   kaiju.update(elapsedTime);
+
+  destructionSystem.update(deltaTime);
 
   controls.update();
 
