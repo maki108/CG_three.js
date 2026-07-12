@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { createKaiju } from "./kaiju.js";
 import "./style.css";
 
 // ============================================================
@@ -96,6 +97,19 @@ sunLight.shadow.bias = -0.0002;
 
 scene.add(sunLight);
 scene.add(sunLight.target);
+
+// 夕陽と反対側から当たる青紫色の補助光
+const fillLight = new THREE.DirectionalLight(
+  0x7186c9,
+  1.4,
+);
+
+fillLight.position.set(18, 12, 20);
+
+// 影は夕陽だけで作るため、補助光には影を付けない
+fillLight.castShadow = false;
+
+scene.add(fillLight);
 
 // ============================================================
 // 背景の太陽
@@ -408,6 +422,14 @@ for (let position = -16; position <= 16; position += 4) {
 }
 
 // ============================================================
+// 怪獣
+// ============================================================
+
+const kaiju = createKaiju();
+
+scene.add(kaiju.group);
+
+// ============================================================
 // ウィンドウサイズ変更
 // ============================================================
 
@@ -431,10 +453,12 @@ const clock = new THREE.Clock();
 function animate() {
   const elapsedTime = clock.getElapsedTime();
 
-  // 太陽をわずかに明滅させる
   sun.scale.setScalar(
     1 + Math.sin(elapsedTime * 0.5) * 0.015,
   );
+
+  // 怪獣の歩行アニメーション
+  kaiju.update(elapsedTime);
 
   controls.update();
 
